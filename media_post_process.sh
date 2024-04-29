@@ -23,44 +23,51 @@ list_media_files() {
 
     printf "Listing all media files:\n"
     local any_process_assigned=false
+    local idx=0
     for i in "${!files[@]}"; do
         local display_name="${files[$i]##*/}"
+        local letter=$(printf "\\x$(printf %x $((65 + idx)))")
         if [[ -n "${choices[$i]}" ]]; then
-            printf "%d. %s (%s)\n" "$((i+1))" "$display_name" "${choices[$i]}"
+            printf "%s. %s (%s)\n" "$letter" "$display_name" "${choices[$i]}"
             any_process_assigned=true
         else
-            printf "%d. %s\n" "$((i+1))" "$display_name"
+            printf "%s. %s\n" "$letter" "$display_name"
         fi
+        ((idx++))
     done
 
+    local proceed_letter=$(printf "\\x$(printf %x $((65 + idx)))")
     if [[ "$any_process_assigned" == true ]]; then
-        printf "%d. < proceed >\n" "$(( ${#files[@]} + 1 ))"
+        printf "%s. < proceed >\n" "$proceed_letter"
     fi
 
-    read -n 1 -p "Choose a file number for further processing or press 'q' to quit: " choice
+    read -n 1 -p "Choose a file letter for further processing or press 'q' to quit: " choice
     printf "\n"
-    local max_choice=$(( ${#files[@]} + 1 ))
-    if [[ $choice =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "$max_choice" ]; then
-        if [[ "$choice" -eq "$max_choice" ]] && [[ "$any_process_assigned" == true ]]; then
-            proceed_with_tasks "${files[@]}"
-        else
-            local file_idx=$((choice-1))
-            choose_process "$file_idx" "${files[$file_idx]}"
-        fi
-    elif [[ "$choice" == 'q' ]]; then
+    choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
+    local selected_index=$(( $(printf "%d" "'$choice") - 65 ))
+
+    if [[ "$choice" =~ [A-Z] ]] && [ "$selected_index" -ge 0 ] && [ "$selected_index" -lt "${#files[@]}" ]; then
+        choose_process "$selected_index" "${files[$selected_index]}"
+    elif [[ "$choice" == "$proceed_letter" ]] && [[ "$any_process_assigned" == true ]]; then
+        proceed_with_tasks "${files[@]}"
+    elif [[ "$choice" == 'Q' ]]; then
         printf "Exiting program.\n"
         exit 0
     else
-        printf "Invalid input. Please enter a number between 1 and %d or press 'q' to quit.\n" "$max_choice"
+        printf "Invalid input. Please enter a valid letter between A and %s or press 'Q' to quit.\n" "$proceed_letter"
     fi
 }
 
 choose_process() {
     local idx=$1
     local file=$2
-    local options=("Extract audio to .mp3" "Re-encode to new .mp4")
+    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle")
 
-    printf "Available post-processes:\n1. %s\n2. %s\n" "${options[0]}" "${options[1]}"
+    printf "Available post-processes:\n"
+    for i in "${!options[@]}"; do
+        printf "%d. %s\n" "$((i + 1))" "${options[$i]}"
+    done
+
     read -n 1 -p "Choose a post-process option: " process_choice
     printf "\n"
 
@@ -71,8 +78,11 @@ choose_process() {
         2)
             choices[$idx]="${options[1]}"
             ;;
+        3)
+            choices[$idx]="${options[2]}"
+            ;;
         *)
-            printf "Invalid choice. Please select 1 or 2.\n"
+            printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
             choose_process "$idx" "$file"  # Retry if invalid input
             ;;
     esac
@@ -82,7 +92,7 @@ choose_process() {
 proceed_with_tasks() {
     local ffmpeg_path=$(which ffmpeg)
     if [[ -z "$ffmpeg_path" ]]; then
-        printf "ffmpeg is not installed or not found in the PATH.\n"
+        printf "ffmpeg is not installed or not found in the PATH.\n" >&2
         return 1
     fi
 
@@ -97,6 +107,15 @@ proceed_with_tasks() {
             local output_file="${input_file%.*}.reencoded.mp4"
             printf "Re-encoding %s to %s...\n" "$input_file" "$output_file"
             "$ffmpeg_path" -i "$input_file" -codec:v libx264 -codec:a aac -strict experimental -b:a 192k -y "$output_file"
+        elif [[ "${choices[$idx]}" == "Merge subtitle" ]]; then
+            local subtitle_file="${input_file%.*}.srt"
+            if [[ -f "$subtitle_file" ]]; then
+                local output_file="${input_file%.*}.subtitled.mp4"
+                printf "Merging subtitle from %s to %s...\n" "$subtitle_file" "$output_file"
+                "$ffmpeg_path" -i "$input_file" -vf subtitles="$subtitle_file" -codec:a copy -codec:v libx264 -crf 23 "$output_file"
+            else
+                printf "No subtitle file found for %s\n" "$input_file"
+            fi
         fi
     done
 }
