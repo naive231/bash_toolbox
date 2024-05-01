@@ -3,7 +3,7 @@
 # Declare choices array globally to retain choices between function calls
 declare -a choices
 
-list_media_files() {
+list_media_files_menu() {
     local dir=$1
     local files=()  # Array to store file names
 
@@ -22,26 +22,32 @@ list_media_files() {
     fi
 
     printf "Listing all media files:\n"
-    local any_process_assigned=false
     local idx=0
     for i in "${!files[@]}"; do
         local display_name="${files[$i]##*/}"
         local letter=$(printf "\\x$(printf %x $((65 + idx)))")
         if [[ -n "${choices[$i]}" ]]; then
             printf "%s. %s (%s)\n" "$letter" "$display_name" "${choices[$i]}"
-            any_process_assigned=true
         else
             printf "%s. %s\n" "$letter" "$display_name"
         fi
         ((idx++))
     done
 
-    local proceed_letter=$(printf "\\x$(printf %x $((65 + idx)))")
+    local any_process_assigned=false
+    for choice in "${choices[@]}"; do
+        if [[ -n "$choice" ]]; then
+            any_process_assigned=true
+            break
+        fi
+    done
+
     if [[ "$any_process_assigned" == true ]]; then
+        local proceed_letter=$(printf "\\x$(printf %x $((65 + idx)))")
         printf "%s. < proceed >\n" "$proceed_letter"
     fi
 
-    read -n 1 -p "Choose a file letter for further processing or press 'q' to quit: " choice
+    read -n 1 -p "Choose a file letter for further processing, press '$proceed_letter' to proceed, or 'q' to quit: " choice
     printf "\n"
     choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
     local selected_index=$(( $(printf "%d" "'$choice") - 65 ))
@@ -54,8 +60,13 @@ list_media_files() {
         printf "Exiting program.\n"
         exit 0
     else
-        printf "Invalid input. Please enter a valid letter between A and %s or press 'Q' to quit.\n" "$proceed_letter"
+        printf "Invalid input. Please enter a valid letter between A and %s, press '%s' to proceed, or 'Q' to quit.\n" "$proceed_letter" "$proceed_letter"
     fi
+}
+
+main_menu() {
+    local directory_path="."  # Set the default path to current directory
+    list_media_files_menu "$directory_path"
 }
 
 choose_process() {
@@ -86,7 +97,7 @@ choose_process() {
             choose_process "$idx" "$file"  # Retry if invalid input
             ;;
     esac
-    list_media_files "."  # Refresh list after making a choice
+    list_media_files_menu "."  # Refresh list after making a choice
 }
 
 proceed_with_tasks() {
@@ -120,9 +131,4 @@ proceed_with_tasks() {
     done
 }
 
-main() {
-    local directory_path="." # Set the default path to current directory
-    list_media_files "$directory_path"
-}
-
-main
+main_menu
