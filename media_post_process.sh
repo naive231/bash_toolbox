@@ -34,6 +34,10 @@ list_media_files_menu() {
         ((idx++))
     done
 
+    # Add All[*] option
+    local all_choice_letter=$(printf "\\x$(printf %x $((65 + idx)))")
+    printf "%s. All[*]\n" "$all_choice_letter"
+
     local any_process_assigned=false
     for choice in "${choices[@]}"; do
         if [[ -n "$choice" ]]; then
@@ -43,17 +47,20 @@ list_media_files_menu() {
     done
 
     if [[ "$any_process_assigned" == true ]]; then
-        local proceed_letter=$(printf "\\x$(printf %x $((65 + idx)))")
+        local proceed_letter=$(printf "\\x$(printf %x $((65 + idx + 1)))")
         printf "%s. < proceed >\n" "$proceed_letter"
     fi
-    read -n 1 -p "Choose a file letter for further processing, or 'q' to quit: " choice
 
+    read -n 1 -p "Choose a file letter for further processing, or 'q' to quit: " choice
     printf "\n"
+
     choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
     local selected_index=$(( $(printf "%d" "'$choice") - 65 ))
 
     if [[ "$choice" =~ [A-Z] ]] && [ "$selected_index" -ge 0 ] && [ "$selected_index" -lt "${#files[@]}" ]; then
         choose_process "$selected_index" "${files[$selected_index]}"
+    elif [[ "$choice" == "$all_choice_letter" ]]; then
+        apply_to_all_files
     elif [[ "$choice" == "$proceed_letter" ]] && [[ "$any_process_assigned" == true ]]; then
         proceed_with_tasks "${files[@]}"
     elif [[ "$choice" == 'Q' ]]; then
@@ -62,6 +69,31 @@ list_media_files_menu() {
     else
         printf "Invalid input. Please enter a valid letter between A and %s, press '%s' to proceed, or 'Q' to quit.\n" "$proceed_letter" "$proceed_letter"
     fi
+}
+
+apply_to_all_files() {
+    printf "Select a process to apply to all files:\n"
+    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle")
+    local i
+    for i in "${!options[@]}"; do
+        printf "%d. %s\n" "$((i + 1))" "${options[$i]}"
+    done
+
+    local process_choice
+    read -n 1 -p "Enter your choice: " process_choice
+    printf "\n"
+
+    for idx in "${!choices[@]}"; do
+        case "$process_choice" in
+            1) choices[$idx]="Extract audio to .mp3" ;;
+            2) choices[$idx]="Re-encode to new .mp4" ;;
+            3) choices[$idx]="Merge subtitle" ;;
+            *) printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
+               apply_to_all_files
+               return ;;
+        esac
+    done
+    list_media_files_menu "."  # Refresh list after making a choice
 }
 
 main_menu() {
@@ -83,19 +115,12 @@ choose_process() {
     printf "\n"
 
     case "$process_choice" in
-        1)
-            choices[$idx]="${options[0]}"
-            ;;
-        2)
-            choices[$idx]="${options[1]}"
-            ;;
-        3)
-            choices[$idx]="${options[2]}"
-            ;;
-        *)
-            printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
-            choose_process "$idx" "$file"  # Retry if invalid input
-            ;;
+        1) choices[$idx]="Extract audio to .mp3" ;;
+        2) choices[$idx]="Re-encode to new .mp4" ;;
+        3) choices[$idx]="Merge subtitle" ;;
+        *) printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
+           choose_process "$idx" "$file"  # Retry if invalid input
+           ;;
     esac
     list_media_files_menu "."  # Refresh list after making a choice
 }
