@@ -46,8 +46,8 @@ list_media_files_menu() {
         local proceed_letter=$(printf "\\x$(printf %x $((65 + idx)))")
         printf "%s. < proceed >\n" "$proceed_letter"
     fi
+    read -n 1 -p "Choose a file letter for further processing, or 'q' to quit: " choice
 
-    read -n 1 -p "Choose a file letter for further processing, press '$proceed_letter' to proceed, or 'q' to quit: " choice
     printf "\n"
     choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
     local selected_index=$(( $(printf "%d" "'$choice") - 65 ))
