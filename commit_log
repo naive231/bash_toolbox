@@ -1,2 +1,0 @@
-Add .gitignore to ignore the 'commit_log'.
-Refactoring. Split the 'list_media_files' and the implementation of '<proceed>' menu.
