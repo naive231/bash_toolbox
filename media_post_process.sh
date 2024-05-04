@@ -104,7 +104,7 @@ main_menu() {
 choose_process() {
     local idx=$1
     local file=$2
-    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle")
+    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle" "Translate JP to TC")
 
     printf "Available post-processes:\n"
     for i in "${!options[@]}"; do
@@ -118,6 +118,7 @@ choose_process() {
         1) choices[$idx]="Extract audio to .mp3" ;;
         2) choices[$idx]="Re-encode to new .mp4" ;;
         3) choices[$idx]="Merge subtitle" ;;
+        4) choices[$idx]="Translate JP to TC" ;;
         *) printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
            choose_process "$idx" "$file"  # Retry if invalid input
            ;;
@@ -135,24 +136,39 @@ proceed_with_tasks() {
     printf "Proceeding with the assigned tasks...\n"
     for idx in "${!choices[@]}"; do
         local input_file="${files[$idx]}"
-        if [[ "${choices[$idx]}" == "Extract audio to .mp3" ]]; then
-            local output_file="${input_file%.*}.mp3"
-            printf "Extracting audio from %s to %s...\n" "$input_file" "$output_file"
-            "$ffmpeg_path" -i "$input_file" -vn -acodec libmp3lame -ac 2 -ab 192k -ar 48000 "$output_file"
-        elif [[ "${choices[$idx]}" == "Re-encode to new .mp4" ]]; then
-            local output_file="${input_file%.*}.reencoded.mp4"
-            printf "Re-encoding %s to %s...\n" "$input_file" "$output_file"
-            "$ffmpeg_path" -i "$input_file" -codec:v libx264 -codec:a aac -strict experimental -b:a 192k -y "$output_file"
-        elif [[ "${choices[$idx]}" == "Merge subtitle" ]]; then
-            local subtitle_file="${input_file%.*}.srt"
-            if [[ -f "$subtitle_file" ]]; then
-                local output_file="${input_file%.*}.subtitled.mp4"
-                printf "Merging subtitle from %s to %s...\n" "$subtitle_file" "$output_file"
-                "$ffmpeg_path" -i "$input_file" -vf subtitles="$subtitle_file" -codec:a copy -codec:v libx264 -crf 23 "$output_file"
-            else
-                printf "No subtitle file found for %s\n" "$input_file"
-            fi
-        fi
+        local subtitle_file="${input_file%.*}.srt"
+
+        case "${choices[$idx]}" in
+            "Extract audio to .mp3")
+                local output_file="${input_file%.*}.mp3"
+                printf "Extracting audio from %s to %s...\n" "$input_file" "$output_file"
+                "$ffmpeg_path" -i "$input_file" -vn -acodec libmp3lame -ac 2 -ab 192k -ar 48000 "$output_file"
+                ;;
+            "Re-encode to new .mp4")
+                local output_file="${input_file%.*}.reencoded.mp4"
+                printf "Re-encoding %s to %s...\n" "$input_file" "$output_file"
+                "$ffmpeg_path" -i "$input_file" -codec:v libx264 -codec:a aac -strict experimental -b:a 192k -y "$output_file"
+                ;;
+            "Merge subtitle")
+                if [[ -f "$subtitle_file" ]]; then
+                    local output_file="${input_file%.*}.subtitled.mp4"
+                    printf "Merging subtitle from %s to %s...\n" "$subtitle_file" "$output_file"
+                    "$ffmpeg_path" -i "$input_file" -vf subtitles="$subtitle_file" -codec:a copy -codec:v libx264 -crf 23 "$output_file"
+                else
+                    printf "No subtitle file found for %s\n" "$input_file"
+                fi
+                ;;
+            "Translate JP to TC")
+                if [[ -f "$subtitle_file" ]]; then
+                    printf "Translating subtitles from Japanese to Traditional Chinese for %s...\n" "$input_file"
+                    if ! trans -b -no-warn -no-autocorrect -i "$subtitle_file" -o "$subtitle_file" ja:zh-TW; then
+                        printf "Failed to translate subtitles for %s\n" "$input_file" >&2
+                    fi
+                else
+                    printf "No subtitle file found for %s\n" "$input_file"
+                fi
+                ;;
+        esac
     done
 }
 
