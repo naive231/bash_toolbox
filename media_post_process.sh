@@ -14,7 +14,7 @@ list_media_files_menu() {
             # Initialize with empty string for each new file
             choices+=("")
         fi
-    done < <(find "$dir" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.mov" \) -print0)
+    done < <(find "$dir" -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.mov" -o -iname "*.m4a" \) -print0)
 
     if [[ ${#files[@]} -eq 0 ]]; then
         printf "No media files found in the directory: %s\n" "$dir" >&2
@@ -73,7 +73,7 @@ list_media_files_menu() {
 
 apply_to_all_files() {
     printf "Select a process to apply to all files:\n"
-    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle")
+    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle" "Extract transcript with Chinese")
     local i
     for i in "${!options[@]}"; do
         printf "%d. %s\n" "$((i + 1))" "${options[$i]}"
@@ -88,6 +88,7 @@ apply_to_all_files() {
             1) choices[$idx]="Extract audio to .mp3" ;;
             2) choices[$idx]="Re-encode to new .mp4" ;;
             3) choices[$idx]="Merge subtitle" ;;
+            4) choices[$idx]="Extract transcript with Chinese" ;;
             *) printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
                apply_to_all_files
                return ;;
@@ -104,7 +105,7 @@ main_menu() {
 choose_process() {
     local idx=$1
     local file=$2
-    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle" "Translate JP to TC")
+    local options=("Extract audio to .mp3" "Re-encode to new .mp4" "Merge subtitle" "Translate JP to TC" "Extract transcript with Chinese")
 
     printf "Available post-processes:\n"
     for i in "${!options[@]}"; do
@@ -119,6 +120,7 @@ choose_process() {
         2) choices[$idx]="Re-encode to new .mp4" ;;
         3) choices[$idx]="Merge subtitle" ;;
         4) choices[$idx]="Translate JP to TC" ;;
+        5) choices[$idx]="Extract transcript with Chinese" ;;
         *) printf "Invalid choice. Please select a number between 1 and %d.\n" "${#options[@]}"
            choose_process "$idx" "$file"  # Retry if invalid input
            ;;
@@ -167,6 +169,10 @@ proceed_with_tasks() {
                 else
                     printf "No subtitle file found for %s\n" "$input_file"
                 fi
+                ;;
+            "Extract transcript with Chinese")
+                printf "Extracting transcript with Chinese for %s...\n" "$input_file"
+                # Implementation will be added here later
                 ;;
         esac
     done
