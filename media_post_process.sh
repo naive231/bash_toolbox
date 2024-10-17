@@ -128,6 +128,31 @@ choose_process() {
     list_media_files_menu "."  # Refresh list after making a choice
 }
 
+run_whisper_transcription() {
+    local input_file=$1
+    local whisper_model="ggml-turbo.bin"
+
+    # Check if Whisper model is available, download if not
+    if [[ ! -f "$whisper_model" ]]; then
+        printf "Whisper model not found. Downloading '%s'...\n" "$whisper_model"
+        curl -L -o "$whisper_model" -# "https://huggingface.co/openai/whisper-turbo/resolve/main/$whisper_model"
+    fi
+    printf "Model '%s' is available. Loading model, this may take a while...\n" "$whisper_model"
+
+    # Load the model using Python and perform transcription
+    python3 - <<END
+import whisper
+print("Loading model, please wait...")
+model = whisper.load_model("$whisper_model")
+print("Model loaded successfully.")
+# Here, you would add the code to transcribe the audio file and save the result
+transcription = model.transcribe("$input_file")
+with open("${input_file%.*}_transcript.txt", "w") as f:
+    f.write(transcription["text"])
+print("Transcription completed and saved to ${input_file%.*}_transcript.txt")
+END
+}
+
 proceed_with_tasks() {
     local ffmpeg_path=$(which ffmpeg)
     if [[ -z "$ffmpeg_path" ]]; then
@@ -171,11 +196,11 @@ proceed_with_tasks() {
                 fi
                 ;;
             "Extract transcript with Chinese")
-                printf "Extracting transcript with Chinese for %s...\n" "$input_file"
-                # Implementation will be added here later
+                run_whisper_transcription "$input_file"
                 ;;
         esac
     done
 }
 
 main_menu
+
