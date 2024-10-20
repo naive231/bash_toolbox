@@ -199,8 +199,8 @@ def extract_audio(selected_files, stdscr):
                 stdscr.addstr(2 + idx, 0, error_message[:width - 1])
                 stdscr.refresh()
             else:
-                # Remove spinner after completion
-                stdscr.addstr(2 + idx, len(progress_message), ' ')
+                # Update status to indicate completion
+                stdscr.addstr(2 + idx, 0, f"Extracted {output_file}")
                 stdscr.refresh()
 
         except Exception as e:
@@ -208,12 +208,13 @@ def extract_audio(selected_files, stdscr):
             stdscr.addstr(2 + idx, 0, error_message[:width - 1])
             stdscr.refresh()
 
+    # Wait for user input after all files have been processed
     stdscr.addstr(height - 2, 0, "Extraction complete. Press any key to continue.")
     stdscr.refresh()
     stdscr.getch()
 
 def reencode_media(selected_files, stdscr):
-    """Re-encode selected media files and save as MP4."""
+    """Re-encode selected media files to MP4 format."""
     stdscr.clear()
     height, width = stdscr.getmaxyx()
 
@@ -269,8 +270,8 @@ def reencode_media(selected_files, stdscr):
                 stdscr.addstr(2 + idx, 0, error_message[:width - 1])
                 stdscr.refresh()
             else:
-                # Remove spinner after completion
-                stdscr.addstr(2 + idx, len(progress_message), ' ')
+                # Update status to indicate completion
+                stdscr.addstr(2 + idx, 0, f"Re-encoded to {output_file}")
                 stdscr.refresh()
 
         except Exception as e:
@@ -278,6 +279,7 @@ def reencode_media(selected_files, stdscr):
             stdscr.addstr(2 + idx, 0, error_message[:width - 1])
             stdscr.refresh()
 
+    # Wait for user input after all files have been processed
     stdscr.addstr(height - 2, 0, "Re-encoding complete. Press any key to continue.")
     stdscr.refresh()
     stdscr.getch()
@@ -373,8 +375,7 @@ def transcript_audio(selected_files, stdscr):
 
     # Start transcribing
     for idx, media_file in enumerate(selected_files):
-        stdscr.clear()
-        stdscr.addstr(0, 0, f"Transcribing {media_file}...")
+        stdscr.addstr(2 + idx, 0, f"Transcribing {media_file}... ")
         stdscr.refresh()
 
         # Show animation during transcription
@@ -384,7 +385,7 @@ def transcript_audio(selected_files, stdscr):
             spinner = ['|', '/', '-', '\\']
             idx_anim = 0
             while transcribing:
-                stdscr.addstr(0, len(f"Transcribing {media_file}... "), spinner[idx_anim % len(spinner)])
+                stdscr.addstr(2 + idx, len(f"Transcribing {media_file}... "), spinner[idx_anim % len(spinner)])
                 stdscr.refresh()
                 idx_anim += 1
                 time.sleep(0.1)
@@ -400,19 +401,24 @@ def transcript_audio(selected_files, stdscr):
             output_file = base_name + '_transcript.txt'
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(result['text'])
+
+            # Update status to indicate completion
+            transcribing = False
+            animation_thread.join()
+            stdscr.addstr(2 + idx, 0, f"Transcribed {media_file} -> {output_file}")
+            stdscr.refresh()
+
         except Exception as e:
             transcribing = False
             animation_thread.join()
-            stdscr.addstr(1, 0, f"Error transcribing {media_file}: {e}")
+            stdscr.addstr(2 + idx, 0, f"Error transcribing {media_file}: {e}")
             stdscr.refresh()
-            stdscr.getch()
-            continue
+            continue  # Move on to the next file
 
-        transcribing = False
-        animation_thread.join()
-        stdscr.addstr(1, 0, f"Transcription saved to {output_file}")
-        stdscr.refresh()
-        stdscr.getch()
+    # Wait for user input after all files have been processed
+    stdscr.addstr(height - 2, 0, "Transcription complete. Press any key to continue.")
+    stdscr.refresh()
+    stdscr.getch()
 
 def select_model_menu(stdscr, models):
     """Display a menu to select a Whisper model."""
