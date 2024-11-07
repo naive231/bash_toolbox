@@ -2,6 +2,7 @@ import os
 import curses
 import subprocess
 import time  # For spinner animation
+import youtube_dl  # Use youtube-dl for YouTube extraction
 
 # Define supported media extensions
 MEDIA_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.flv', '.mov', '.wmv', '.mpeg', '.mpg', '.m4a']
@@ -80,7 +81,8 @@ def post_process_menu(stdscr, selected_files):
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
         options = [
-            'Extract audio with MP3 format',
+            'Extract audio with MP3 format (from files)',
+            'Extract audio with MP3 format (from YouTube link)',
             'Re-encode media files to MP4 format',
             '(Back to file selection)'
         ]
@@ -112,19 +114,64 @@ def post_process_menu(stdscr, selected_files):
                 current_row = (current_row + 1) % len(options)
             elif key in [ord('\n'), curses.KEY_ENTER]:
                 selected_option = options[current_row]
-                if selected_option == 'Extract audio with MP3 format':
+                if selected_option == 'Extract audio with MP3 format (from files)':
                     extract_audio(selected_files, stdscr)
                     return True  # Return to file selection menu after processing
+                elif selected_option == 'Extract audio with MP3 format (from YouTube link)':
+                    url = input_youtube_url(stdscr)
+                    if url:
+                        extract_audio_from_youtube(url, stdscr)
+                    return True
                 elif selected_option == 'Re-encode media files to MP4 format':
                     reencode_media(selected_files, stdscr)
-                    return True  # Return to file selection menu after processing
+                    return True
                 elif selected_option == '(Back to file selection)':
-                    return True  # Return to file selection menu
+                    return True
             elif key == ord('q') or key == ord('Q'):
-                return None  # Signal to exit the script
+                return None
 
     except KeyboardInterrupt:
         pass
+
+def input_youtube_url(stdscr):
+    """Prompt user to input a YouTube URL."""
+    curses.echo()
+    stdscr.clear()
+    stdscr.addstr(0, 0, "Enter YouTube URL (or press Enter to cancel): ")
+    url = stdscr.getstr().decode('utf-8').strip()
+    curses.noecho()
+    return url if url else None
+
+def extract_audio_from_youtube(url, stdscr):
+    """Extract audio from a YouTube link and save as MP3."""
+    stdscr.clear()
+    height, width = stdscr.getmaxyx()
+    stdscr.addstr(0, 0, "Extracting audio from YouTube...")
+    stdscr.refresh()
+
+    options = {
+        'format': 'bestaudio/best',
+        'outtmpl': '%(title)s.%(ext)s',
+        'postprocessors': [
+            {
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }
+        ],
+    }
+
+    with youtube_dl.YoutubeDL(options) as ydl:
+        try:
+            ydl.download([url])
+            stdscr.addstr(height - 2, 0, "Audio extraction complete. Press any key to continue.")
+            stdscr.refresh()
+            stdscr.getch()
+        except Exception as e:
+            error_message = f"Error extracting audio: {e}"
+            stdscr.addstr(height - 2, 0, error_message[:width - 1])
+            stdscr.refresh()
+            stdscr.getch()
 
 def extract_audio(selected_files, stdscr):
     """Extract audio from selected media files and save as MP3."""
