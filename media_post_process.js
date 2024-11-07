@@ -1,6 +1,8 @@
 const fs = require('fs');
 const inquirer = require('inquirer');
 const readline = require('readline');
+const { exec } = require('child_process');
+const path = require('path');
 
 // Utility function to get all media files in the current directory
 function getMediaFiles() {
@@ -104,8 +106,14 @@ async function openPostProcessMenu(selectedFiles, mediaFiles) {
         } else if (key.name === 'return') {
             rl.close();
             console.log(`\nSelected option: ${postProcessOptions[cursorIndex]}`);
-            // Here, proceed to execute the selected post-process function
-            process.exit();
+            if (cursorIndex === 0) {
+                extractAudio(selectedMediaFiles);
+            } else if (cursorIndex === 1) {
+                reEncodeMedia(selectedMediaFiles);
+            } else if (cursorIndex === 2) {
+                transcriptAudio(selectedMediaFiles);
+            }
+            return;
         } else if (key.name.toLowerCase() === 'q') {
             rl.close();
             process.exit();
@@ -123,5 +131,63 @@ async function openPostProcessMenu(selectedFiles, mediaFiles) {
     }
 }
 
-main();
+function extractAudio(files) {
+    files.forEach(file => {
+        const output = file.replace(/\.[^/.]+$/, ".mp3");
+        console.log(`Extracting audio from ${file} to ${output}...`);
+        exec(`ffmpeg -i "${file}" -q:a 0 -map a "${output}"`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error extracting audio from ${file}: ${error.message}`);
+                return;
+            }
+            console.log(`Audio extracted to ${output}`);
+        });
+    });
+}
 
+function reEncodeMedia(files) {
+    files.forEach(file => {
+        const output = file.replace(/\.[^/.]+$/, ".mp4");
+        console.log(`Re-encoding ${file} to ${output}...`);
+        exec(`ffmpeg -i "${file}" -c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k "${output}"`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error re-encoding ${file}: ${error.message}`);
+                return;
+            }
+            console.log(`Re-encoded to ${output}`);
+        });
+    });
+}
+
+function transcriptAudio(files) {
+    files.forEach(file => {
+        const modelPath = path.join(__dirname, 'whisper_model');
+        if (!fs.existsSync(modelPath)) {
+            console.log(`Model not found. Downloading Whisper model...`);
+            exec(`curl -o whisper_model https://example.com/path/to/whisper/model`, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`Error downloading model: ${error.message}`);
+                    return;
+                }
+                console.log(`Model downloaded.`);
+                loadAndTranscribe(file, modelPath);
+            });
+        } else {
+            loadAndTranscribe(file, modelPath);
+        }
+    });
+}
+
+function loadAndTranscribe(file, modelPath) {
+    console.log(`Loading Whisper model from ${modelPath}...`);
+    // Placeholder for loading animation
+    setTimeout(() => {
+        console.log(`Model loaded. Starting transcription for ${file}...`);
+        // Placeholder for actual Whisper transcription implementation
+        setTimeout(() => {
+            console.log(`Transcription for ${file} complete.`);
+        }, 3000); // Simulating transcription delay
+    }, 2000); // Simulating loading delay
+}
+
+main();
