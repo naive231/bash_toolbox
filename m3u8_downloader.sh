@@ -1,13 +1,19 @@
 #!/bin/bash
 
-# Global array to store .m3u8 links
+# Global arrays
 list_items=()
-# Global array to hold actual .m3u8 list
 m3u8_list=()
-# Global array to hold actual download file name list.
 download_file_list=()
-# Download tasks list
 download_tasks_list_json=".download_tasks.json"
+
+# Function to check if jq is installed
+check_dependencies() {
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Error: 'jq' is required but not installed."
+        echo "Please install jq using 'brew install jq' (macOS) or 'sudo apt-get install jq' (Linux)."
+        exit 1
+    fi
+}
 
 # Function to fetch .m3u8 links and populate the global array
 fetch_list_items() {
@@ -34,7 +40,7 @@ fetch_list_items() {
                 fi
             fi
         done | grep -F ".m3u8" | sort -u))
-        m3u8_list=("${list_items[@]}")
+    m3u8_list=("${list_items[@]}")
 }
 
 # Function to rename URLs and append identical names
@@ -79,7 +85,7 @@ append_duration() {
 
     for ITEM in "${LINKS[@]}"; do
         # Extract the URL part of the ITEM
-        local URL=$(echo "$ITEM" | cut -d' ' -f1)
+        local URL=$(echo "$ITEM" | awk '{print $1}')
 
         # Get the duration using ffprobe (ensure ffprobe is installed)
         local DURATION=$(ffprobe -i "$URL" -show_entries format=duration -v quiet -of csv="p=0" 2>/dev/null)
@@ -107,6 +113,7 @@ append_duration() {
     # Update the global links array with durations
     list_items=("${UPDATED_LINKS[@]}")
 }
+
 # Function to write lists to JSON file
 write_to_json() {
     local JSON_FILE=${download_tasks_list_json}
@@ -127,6 +134,24 @@ write_to_json() {
     echo "}" >> "$JSON_FILE"
     echo "Written to $JSON_FILE"
 }
+
+# Function to read existing task file and populate arrays
+read_task_file() {
+    local JSON_FILE=${download_tasks_list_json}
+    check_dependencies
+
+    # Read the keys (list_items)
+    mapfile -t list_items < <(jq -r 'keys[]' "$JSON_FILE")
+
+    # For each key, extract the values
+    for key in "${list_items[@]}"; do
+        local url=$(jq -r --arg k "$key" '.[$k][0]' "$JSON_FILE")
+        local download_file=$(jq -r --arg k "$key" '.[$k][1]' "$JSON_FILE")
+        m3u8_list+=("$url")
+        download_file_list+=("$download_file")
+    done
+}
+
 # Main function to handle arguments and call other functions
 main() {
     if [[ $# -lt 1 ]]; then
@@ -135,17 +160,37 @@ main() {
     fi
 
     local URL="$1"
-    fetch_list_items "$URL"
-    rename_and_append "${list_items[@]}"
-    append_duration "${list_items[@]}"
-    write_to_json
+
+    if [[ -f "$download_tasks_list_json" ]]; then
+        echo "Found existing task file '$download_tasks_list_json'."
+        echo "Content of the task file:"
+        jq . "$download_tasks_list_json"
+        echo
+        read -p "Do you want to use this task menu? [Y/n]: " user_choice
+        user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
+        if [[ "$user_choice" == "n" || "$user_choice" == "no" ]]; then
+            # User chose not to use the existing task file
+            echo "Generating new task menu..."
+            fetch_list_items "$URL"
+            rename_and_append "${list_items[@]}"
+            append_duration "${list_items[@]}"
+            write_to_json
+        else
+            echo "Using existing task file."
+            read_task_file
+        fi
+    else
+        # No existing task file
+        fetch_list_items "$URL"
+        rename_and_append "${list_items[@]}"
+        append_duration "${list_items[@]}"
+        write_to_json
+    fi
 
     # Display final results
-    echo "Final URL list with renamed files and durations:"
-    for ITEM in "${list_items[@]}"; do
-        echo "$ITEM"
-    done
+    echo "Final content of the task file:"
+    jq . "$download_tasks_list_json"
 }
 
-# Uncomment the line below to test the script with a specific URL
+# Start the script
 main "$@"
