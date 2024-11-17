@@ -112,8 +112,13 @@ write_to_json() {
     local JSON_FILE=${download_tasks_list_json}
     echo "{" > "$JSON_FILE"
     for ((i = 0; i < ${#list_items[@]}; i++)); do
-        # Extract the renamed filename without the duration
-        echo -n "    \"${list_items[$i]}\" : \"${m3u8_list[$i]}\"" >> "$JSON_FILE"
+        # Escape special characters for JSON
+        local key=$(printf '%s' "${list_items[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        local url=$(printf '%s' "${m3u8_list[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        local download_file=$(printf '%s' "${download_file_list[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+        # Prepare the value as a JSON array
+        echo -n "    \"$key\": [\"$url\", \"$download_file\"]" >> "$JSON_FILE"
         if [[ $i -lt $(( ${#list_items[@]} - 1 )) ]]; then
             echo "," >> "$JSON_FILE"
         fi
