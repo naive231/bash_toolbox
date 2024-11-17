@@ -190,6 +190,16 @@ main() {
     # Display final results
     echo "Final content of the task file:"
     jq . "$download_tasks_list_json"
+    echo
+    echo "List of items:"
+    jq -r 'keys[]' "$download_tasks_list_json"
+    echo
+    read -p "Download all items listed here (Y/n)? " user_choice
+    user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
+    if [[ "$user_choice" == "n" || "$user_choice" == "no" ]]; then
+        echo "Exiting script."
+        exit 0
+    fi
 }
 
 # Start the script
