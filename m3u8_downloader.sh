@@ -6,11 +6,17 @@ m3u8_list=()
 download_file_list=()
 download_tasks_list_json=".download_tasks.json"
 
-# Function to check if jq is installed
+# Function to check if dependencies are installed
 check_dependencies() {
     if ! command -v jq >/dev/null 2>&1; then
         echo "Error: 'jq' is required but not installed."
         echo "Please install jq using 'brew install jq' (macOS) or 'sudo apt-get install jq' (Linux)."
+        exit 1
+    fi
+
+    if ! command -v youtube-dl >/dev/null 2>&1; then
+        echo "Error: 'youtube-dl' is required but not installed."
+        echo "Please install youtube-dl using 'brew install youtube-dl' (macOS) or 'sudo apt-get install youtube-dl' (Linux)."
         exit 1
     fi
 }
@@ -117,21 +123,25 @@ append_duration() {
 # Function to write lists to JSON file
 write_to_json() {
     local JSON_FILE=${download_tasks_list_json}
-    echo "{" > "$JSON_FILE"
+    echo "[" > "$JSON_FILE"
     for ((i = 0; i < ${#list_items[@]}; i++)); do
         # Escape special characters for JSON
         local key=$(printf '%s' "${list_items[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
         local url=$(printf '%s' "${m3u8_list[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
         local download_file=$(printf '%s' "${download_file_list[$i]}" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
-        # Prepare the value as a JSON array
-        echo -n "    \"$key\": [\"$url\", \"$download_file\"]" >> "$JSON_FILE"
+        # Prepare the object
+        echo "  {" >> "$JSON_FILE"
+        echo "    \"key\": \"$key\"," >> "$JSON_FILE"
+        echo "    \"url\": \"$url\"," >> "$JSON_FILE"
+        echo "    \"download_file\": \"$download_file\"" >> "$JSON_FILE"
         if [[ $i -lt $(( ${#list_items[@]} - 1 )) ]]; then
-            echo "," >> "$JSON_FILE"
+            echo "  }," >> "$JSON_FILE"
+        else
+            echo "  }" >> "$JSON_FILE"
         fi
     done
-    echo "" >> "$JSON_FILE"
-    echo "}" >> "$JSON_FILE"
+    echo "]" >> "$JSON_FILE"
     echo "Written to $JSON_FILE"
 }
 
@@ -140,13 +150,23 @@ read_task_file() {
     local JSON_FILE=${download_tasks_list_json}
     check_dependencies
 
-    # Read the keys (list_items)
-    mapfile -t list_items < <(jq -r 'keys[]' "$JSON_FILE")
+    # Read the array of tasks
+    tasks=()
+    while IFS= read -r line; do
+        tasks+=("$line")
+    done < <(jq -c '.[]' "$JSON_FILE")
 
-    # For each key, extract the values
-    for key in "${list_items[@]}"; do
-        local url=$(jq -r --arg k "$key" '.[$k][0]' "$JSON_FILE")
-        local download_file=$(jq -r --arg k "$key" '.[$k][1]' "$JSON_FILE")
+    # Clear existing arrays
+    list_items=()
+    m3u8_list=()
+    download_file_list=()
+
+    # For each task, extract the values
+    for task in "${tasks[@]}"; do
+        key=$(echo "$task" | jq -r '.key')
+        url=$(echo "$task" | jq -r '.url')
+        download_file=$(echo "$task" | jq -r '.download_file')
+        list_items+=("$key")
         m3u8_list+=("$url")
         download_file_list+=("$download_file")
     done
@@ -160,6 +180,7 @@ main() {
     fi
 
     local URL="$1"
+    check_dependencies
 
     if [[ -f "$download_tasks_list_json" ]]; then
         echo "Found existing task file '$download_tasks_list_json'."
@@ -192,7 +213,7 @@ main() {
     jq . "$download_tasks_list_json"
     echo
     echo "List of items:"
-    jq -r 'keys[]' "$download_tasks_list_json"
+    jq -r '.[] | .key' "$download_tasks_list_json"
     echo
     read -p "Download all items listed here (Y/n)? " user_choice
     user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
@@ -200,6 +221,32 @@ main() {
         echo "Exiting script."
         exit 0
     fi
+
+    # Proceed to download each item using youtube-dl
+    echo "Starting downloads..."
+
+    # Read tasks from the task file
+    tasks=()
+    while IFS= read -r line; do
+        tasks+=("$line")
+    done < <(jq -c '.[]' "$download_tasks_list_json")
+
+    # Process each task
+    for task in "${tasks[@]}"; do
+        # Extract fields from the task object
+        key=$(echo "$task" | jq -r '.key')
+        url=$(echo "$task" | jq -r '.url')
+        output_file=$(echo "$task" | jq -r '.download_file')
+
+        echo "Downloading '$key'..."
+        youtube-dl "$url" -o "$output_file"
+
+        if [ $? -eq 0 ]; then
+            echo "Downloaded '$output_file' successfully."
+        else
+            echo "Failed to download '$output_file'."
+        fi
+    done
 }
 
 # Start the script
