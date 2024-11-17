@@ -1,15 +1,17 @@
 #!/bin/bash
 
 # Global array to store .m3u8 links
-M3U8_LINKS=()
+list_items=()
+# Global array to hold actual .m3u8 list
+m3u8_list=()
 
 # Function to fetch .m3u8 links and populate the global array
-fetch_m3u8_links() {
+fetch_list_items() {
     local URL="$1"
     local BASE_URL=$(echo "$URL" | sed -E 's|(https?://[^/]+).*|\1|')
 
     # Fetch and resolve unique .m3u8 links
-    M3U8_LINKS=($(curl -s "$URL" | grep -Eo '(["'\''])([^"'\'' ]+\.m3u8[^"'\'' ]*)\1' | \
+    list_items=($(curl -s "$URL" | grep -Eo '(["'\''])([^"'\'' ]+\.m3u8[^"'\'' ]*)\1' | \
         sed 's/^["'\'']//;s/["'\'']$//' | while read -r LINK; do
             # Remove escape characters
             LINK=$(echo -e "$LINK" | sed 's/\\//g')
@@ -28,6 +30,7 @@ fetch_m3u8_links() {
                 fi
             fi
         done | grep -F ".m3u8" | sort -u))
+        m3u8_list=("${list_items[@]}")
 }
 
 # Function to rename URLs and append identical names
@@ -60,7 +63,7 @@ rename_and_append() {
     done
 
     # Update the global links array with renamed URLs
-    M3U8_LINKS=("${RENAMED_LINKS[@]}")
+    list_items=("${RENAMED_LINKS[@]}")
 }
 
 # Function to fetch and append video durations
@@ -98,7 +101,7 @@ append_duration() {
     done
 
     # Update the global links array with durations
-    M3U8_LINKS=("${UPDATED_LINKS[@]}")
+    list_items=("${UPDATED_LINKS[@]}")
 }
 
 # Main function to handle arguments and call other functions
@@ -109,13 +112,13 @@ main() {
     fi
 
     local URL="$1"
-    fetch_m3u8_links "$URL"
-    rename_and_append "${M3U8_LINKS[@]}"
-    append_duration "${M3U8_LINKS[@]}"
+    fetch_list_items "$URL"
+    rename_and_append "${list_items[@]}"
+    append_duration "${list_items[@]}"
 
     # Display final results
     echo "Final URL list with renamed files and durations:"
-    for ITEM in "${M3U8_LINKS[@]}"; do
+    for ITEM in "${list_items[@]}"; do
         echo "$ITEM"
     done
 }
