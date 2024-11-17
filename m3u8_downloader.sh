@@ -14,9 +14,9 @@ check_dependencies() {
         exit 1
     fi
 
-    if ! command -v youtube-dl >/dev/null 2>&1; then
-        echo "Error: 'youtube-dl' is required but not installed."
-        echo "Please install youtube-dl using 'brew install youtube-dl' (macOS) or 'sudo apt-get install youtube-dl' (Linux)."
+    if ! command -v yt-dlp >/dev/null 2>&1; then
+        echo "Error: 'yt-dlp' is required but not installed."
+        echo "Please install yt-dlp using 'brew install yt-dlp' (macOS) or 'sudo apt-get install yt-dlp' (Linux)."
         exit 1
     fi
 }
@@ -222,7 +222,7 @@ main() {
         exit 0
     fi
 
-    # Proceed to download each item using youtube-dl
+    # Proceed to download each item using yt-dlp
     echo "Starting downloads..."
 
     # Read tasks from the task file
@@ -239,7 +239,7 @@ main() {
         output_file=$(echo "$task" | jq -r '.download_file')
 
         echo "Downloading '$key'..."
-        youtube-dl "$url" -o "$output_file"
+        yt-dlp "$url" -o "$output_file" --no-check-certificates --concurrent-fragments 2
 
         if [ $? -eq 0 ]; then
             echo "Downloaded '$output_file' successfully."
