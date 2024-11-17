@@ -4,6 +4,10 @@
 list_items=()
 # Global array to hold actual .m3u8 list
 m3u8_list=()
+# Global array to hold actual download file name list.
+download_file_list=()
+# Download tasks list
+download_tasks_list_json=".download_tasks.json"
 
 # Function to fetch .m3u8 links and populate the global array
 fetch_list_items() {
@@ -57,7 +61,7 @@ rename_and_append() {
 
         # Ensure the extension is .mp4
         UNIQUE_NAME="${UNIQUE_NAME%.*}.mp4"
-
+        download_file_list+=("$UNIQUE_NAME")
         # Append renamed link to the output
         RENAMED_LINKS+=("$LINK to $UNIQUE_NAME")
     done
@@ -103,7 +107,21 @@ append_duration() {
     # Update the global links array with durations
     list_items=("${UPDATED_LINKS[@]}")
 }
-
+# Function to write lists to JSON file
+write_to_json() {
+    local JSON_FILE=${download_tasks_list_json}
+    echo "{" > "$JSON_FILE"
+    for ((i = 0; i < ${#list_items[@]}; i++)); do
+        # Extract the renamed filename without the duration
+        echo -n "    \"${list_items[$i]}\" : \"${m3u8_list[$i]}\"" >> "$JSON_FILE"
+        if [[ $i -lt $(( ${#list_items[@]} - 1 )) ]]; then
+            echo "," >> "$JSON_FILE"
+        fi
+    done
+    echo "" >> "$JSON_FILE"
+    echo "}" >> "$JSON_FILE"
+    echo "Written to $JSON_FILE"
+}
 # Main function to handle arguments and call other functions
 main() {
     if [[ $# -lt 1 ]]; then
@@ -115,6 +133,7 @@ main() {
     fetch_list_items "$URL"
     rename_and_append "${list_items[@]}"
     append_duration "${list_items[@]}"
+    write_to_json
 
     # Display final results
     echo "Final URL list with renamed files and durations:"
