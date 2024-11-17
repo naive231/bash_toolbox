@@ -1,4 +1,4 @@
-t #!/bin/bash
+#!/bin/bash
 
 URL="$1"
 BASE_URL=$(echo "$URL" | sed -E 's|(https?://[^/]+).*|\1|')
