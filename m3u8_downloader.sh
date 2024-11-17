@@ -17,4 +17,4 @@ curl -s "$URL" | grep -Eo '(["'\''])([^"'\'' ]+\.m3u8[^"'\'' ]*)\1' | sed 's/^["
             echo "$DIR_URL/$LINK"
         fi
     fi
-done | sort -u
+done | grep -F ".m3u8" | sort -u
