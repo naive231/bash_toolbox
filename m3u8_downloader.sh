@@ -172,43 +172,44 @@ read_task_file() {
     done
 }
 
-# Main function to handle arguments and call other functions
+# Function to main
 main() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: $0 <URL>"
-        exit 1
-    fi
-
-    local URL="$1"
     check_dependencies
-
+    
+    # Check for existing task file first
     if [[ -f "$download_tasks_list_json" ]]; then
         echo "Found existing task file '$download_tasks_list_json'."
         echo "Content of the task file:"
         jq . "$download_tasks_list_json"
         echo
-        read -p "Do you want to use this task menu? [Y/n]: " user_choice
-        user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
-        if [[ "$user_choice" == "n" || "$user_choice" == "no" ]]; then
-            # User chose not to use the existing task file
-            echo "Generating new task menu..."
-            fetch_list_items "$URL"
-            rename_and_append "${list_items[@]}"
-            append_duration "${list_items[@]}"
-            write_to_json
-        else
-            echo "Using existing task file."
+        read -p "Do you want to start downloading from this task file? [Y/n]: " user_choice
+        user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')
+        
+        if [[ "$user_choice" != "n" && "$user_choice" != "no" ]]; then
+            echo "Using existing task file for downloading."
             read_task_file
+            # Skip to download section
+            goto_download=true
         fi
-    else
-        # No existing task file
+    fi
+    
+    # If not using existing task file, check for URL
+    if [[ "$goto_download" != "true" ]]; then
+        if [[ $# -lt 1 ]]; then
+            echo "No URL provided and no existing task file to use."
+            echo "Usage: $0 [URL]"
+            exit 1
+        fi
+        
+        local URL="$1"
+        echo "Generating new task menu..."
         fetch_list_items "$URL"
         rename_and_append "${list_items[@]}"
         append_duration "${list_items[@]}"
         write_to_json
     fi
 
-    # Display final results
+    # Display final results and handle downloads
     echo "Final content of the task file:"
     jq . "$download_tasks_list_json"
     echo
@@ -216,7 +217,7 @@ main() {
     jq -r '.[] | .key' "$download_tasks_list_json"
     echo
     read -p "Download all items listed here (Y/n)? " user_choice
-    user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
+    user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')
     if [[ "$user_choice" == "n" || "$user_choice" == "no" ]]; then
         echo "Exiting script."
         exit 0
