@@ -172,11 +172,8 @@ read_task_file() {
     done
 }
 
-# Function to main
-main() {
-    check_dependencies
-    
-    # Check for existing task file first
+# Function to handle existing task file
+handle_existing_task_file() {
     if [[ -f "$download_tasks_list_json" ]]; then
         echo "Found existing task file '$download_tasks_list_json'."
         echo "Content of the task file:"
@@ -188,28 +185,24 @@ main() {
         if [[ "$user_choice" != "n" && "$user_choice" != "no" ]]; then
             echo "Using existing task file for downloading."
             read_task_file
-            # Skip to download section
-            goto_download=true
+            return 0  # Use existing file
         fi
     fi
-    
-    # If not using existing task file, check for URL
-    if [[ "$goto_download" != "true" ]]; then
-        if [[ $# -lt 1 ]]; then
-            echo "No URL provided and no existing task file to use."
-            echo "Usage: $0 [URL]"
-            exit 1
-        fi
-        
-        local URL="$1"
-        echo "Generating new task menu..."
-        fetch_list_items "$URL"
-        rename_and_append "${list_items[@]}"
-        append_duration "${list_items[@]}"
-        write_to_json
-    fi
+    return 1  # Generate new task file
+}
 
-    # Display final results and handle downloads
+# Function to generate new task file
+generate_new_task_file() {
+    local URL="$1"
+    echo "Generating new task menu..."
+    fetch_list_items "$URL"
+    rename_and_append "${list_items[@]}"
+    append_duration "${list_items[@]}"
+    write_to_json
+}
+
+# Function to display tasks and get user confirmation
+display_and_confirm_tasks() {
     echo "Final content of the task file:"
     jq . "$download_tasks_list_json"
     echo
@@ -219,25 +212,23 @@ main() {
     read -p "Download all items listed here (Y/n)? " user_choice
     user_choice=$(echo "$user_choice" | tr '[:upper:]' '[:lower:]')
     if [[ "$user_choice" == "n" || "$user_choice" == "no" ]]; then
-        echo "Exiting script."
-        exit 0
+        return 1
     fi
+    return 0
+}
 
-    # Proceed to download each item using yt-dlp
+# Function to handle downloads
+handle_downloads() {
     echo "Starting downloads..."
-
-    # Read tasks from the task file
-    tasks=()
+    local tasks=()
     while IFS= read -r line; do
         tasks+=("$line")
     done < <(jq -c '.[]' "$download_tasks_list_json")
 
-    # Process each task
     for task in "${tasks[@]}"; do
-        # Extract fields from the task object
-        key=$(echo "$task" | jq -r '.key')
-        url=$(echo "$task" | jq -r '.url')
-        output_file=$(echo "$task" | jq -r '.download_file')
+        local key=$(echo "$task" | jq -r '.key')
+        local url=$(echo "$task" | jq -r '.url')
+        local output_file=$(echo "$task" | jq -r '.download_file')
 
         echo "Downloading '$key'..."
         yt-dlp "$url" -o "$output_file" --no-check-certificates --concurrent-fragments 2
@@ -248,6 +239,33 @@ main() {
             echo "Failed to download '$output_file'."
         fi
     done
+}
+
+# Update main function to use new functions
+main() {
+    check_dependencies
+    
+    local goto_download=false
+    if handle_existing_task_file; then
+        goto_download=true
+    fi
+    
+    if [[ "$goto_download" != "true" ]]; then
+        if [[ $# -lt 1 ]]; then
+            echo "No URL provided and no existing task file to use."
+            echo "Usage: $0 [URL]"
+            exit 1
+        fi
+        
+        generate_new_task_file "$1"
+    fi
+
+    if display_and_confirm_tasks; then
+        handle_downloads
+    else
+        echo "Exiting script."
+        exit 0
+    fi
 }
 
 # Start the script
