@@ -198,9 +198,28 @@ generate_new_task_file() {
     fetch_list_items "$URL"
     rename_and_append "${list_items[@]}"
     append_duration "${list_items[@]}"
+    filter_no_duration_items
     write_to_json
 }
+filter_no_duration_items() {
+    local filtered_list_items=()
+    local filtered_m3u8_list=()
+    local filtered_download_file_list=()
 
+    for i in "${!list_items[@]}"; do
+        # 提取括号内的时长信息
+        local duration=$(echo "${list_items[i]}" | sed -n 's/.*(\(.*\)).*/\1/p')
+        if [ "$duration" != "00:00:00" ]; then
+            filtered_list_items+=("${list_items[i]}")
+            filtered_m3u8_list+=("${m3u8_list[i]}")
+            filtered_download_file_list+=("${download_file_list[i]}")
+        fi
+    done
+
+    list_items=("${filtered_list_items[@]}")
+    m3u8_list=("${filtered_m3u8_list[@]}")
+    download_file_list=("${filtered_download_file_list[@]}")
+}
 # Function to display tasks and get user confirmation
 display_and_confirm_tasks() {
     echo "Final content of the task file:"
